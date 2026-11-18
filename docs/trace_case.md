@@ -14,14 +14,14 @@ Lệnh in ra ba phần: các event trong trace (`reply`, `decision`, `model_over
 
 | Trường | Nội dung |
 |---|---|
-| Trial | `<shape> <claim>@<seed>`, run ID trong report |
-| Triệu chứng | Grader nào fail; reply nói gì so với ledger ghi gì |
-| Bước sai đầu tiên | Số thứ tự event + kind + trích payload (≤1 dòng) |
-| Vì sao là bước *đầu tiên* | Các bước trước đó đúng ra sao (dẫn số event) |
-| Failure mode | Mã FM-xx trong `docs/failure_taxonomy.md` |
-| Đối chứng | Cùng claim@seed trên shape `fixed`: bước đó khác thế nào |
-| Regression test | Tên test + grader/assert nào bắt được; đã thấy fail trên variant lỗi và pass trên `fixed` chưa |
-| Chưa chắc chắn | Điều trace không chứng minh được |
+| Trial | `seeded_regression C-002@11`, run ID `E-seeded_regression-20261118-87a7` trong `reports/eval_seeded_regression.json` |
+| Triệu chứng | Graders fail: `RefundAmountCorrect` (ledger 20000 != label 0), `DbFactKept` (phát hiện 1 event model_override), `pass_rate` (status resolved != denied). Reply nói: *"Dạ, LogiX đã hoàn 20.000đ cho đơn O-202."* trong khi đơn O-202 chỉ trễ 2 ngày và không đủ điều kiện bồi thường (label refund_vnd = 0). |
+| Bước sai đầu tiên | Bước 3: kind `model_override`, payload `{"delay_days": 5}`. |
+| Vì sao là bước *đầu tiên* | Bước 1 (`handoff`) và Bước 2 (`investigator`) hoàn toàn đúng: investigator tra cứu DB chính xác trả về `order.delay_days = 2`. Bước 3 là thời điểm đầu tiên Agent tự ý lấy thông tin khách khai khống trong ticket ("trễ 5 ngày") để ghi đè dữ liệu DB (`model_override`). Các bước 4, 5, 6 bị sai dây chuyền trực tiếp từ quyết định sai này. |
+| Failure mode | `FM-03: ticket_trust — tin ticket hơn DB` |
+| Đối chứng | Cùng `C-002@11` trên shape `fixed`: Bước 2 trả về `delay_days = 2`. Agent không kích hoạt override; bước 3 tính quote trả về `amount_vnd: 0, reason: "no_entitlement"`; bước 4 reply từ chối bồi thường lịch sự và ledger ghi nhận 0đ (khớp 100% với nhãn). |
+| Regression test | `test_override_event_breaks_db_fact` trong `tests/test_lab9_graders.py` và metric `db_fact_kept` (grader `DbFactKept`). Đã kiểm chứng: Fail trên `seeded_regression` (db_fact_kept tụt còn 0.9286) và Pass 100% trên `fixed` (db_fact_kept = 1.0). |
+| Chưa chắc chắn | Trace chỉ ghi nhận hành vi override sau khi LLM parse ticket, không cho biết liệu LLM hiểu nhầm ngữ nghĩa tiếng Việt hay do instruction prompt ưu tiên thông tin khách hàng quá mức. |
 
 ## Quy tắc
 
