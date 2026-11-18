@@ -33,3 +33,23 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10.
 - **Phạm vi pilot:** Tự động xử lý bồi thường khiếu nại giao hàng trễ và hư hỏng hàng hóa cho người dùng cá nhân (P-100); giới hạn số tiền bồi thường tối đa 300.000đ/đơn; đơn đã giao thành công. Không áp dụng cho đơn hàng doanh nghiệp B2B, đơn tranh chấp pháp lý hoặc nhiều bên vận chuyển phức tạp.
 - **Giới hạn / bằng chứng còn thiếu:** Chạy trên môi trường giả lập MockLLM (chưa phản ánh độ trễ mạng thực và tính ngẫu nhiên của LLM production); tập eval set v1 gồm 14 item khiến khoảng tin cậy bootstrap còn rộng; dữ liệu judge mới là tập replay đã công khai (cần tập held-out thật từ người dùng để tránh overfitting).
 - **Khi nào tăng eval-set version:** Khi phát hiện thêm failure mode mới từ trace thực tế cần bổ sung vào bộ kiểm thử; khi triển khai bộ dữ liệu đối kháng adversarial pack (chuyển sang v2); hoặc khi cập nhật chính sách bồi thường và schema nghiệp vụ mới.
+
+---
+
+## Mục v2: Phân tích Nâng cao (M5 – M7)
+
+- **Run ID / eval set SHA (v2):** `E-swarm-20261118-a60d` / `a60d38c4989f`
+- **Eval set v2:** 28 items (14 items v1 + 14 items adversarial attack pack) × 5 seeds = 140 runs; nhãn: `labels_v2.json`.
+- **Ngưỡng chọn từ A/A test (`--aa 66,77,88,99,110`):**
+  - Trên môi trường MockLLM, độ lệch A/A giữa 2 bộ seed độc lập là $\Delta = 0.0000$ trên toàn bộ các metric (hệ thống có tính tiền định).
+  - Với LLM thực tế ngoài production, dải nhiễu A/A luôn lớn hơn 0 do tính ngẫu nhiên (temperature, token sampling). Ngưỡng sàn kiểm định release gate bắt buộc phải được đặt **nằm ngoài dải nhiễu A/A này**, nếu đặt bên trong dải nhiễu thì CI gate sẽ chặn nhầm các PR hoàn toàn trung thực (*false alarms*).
+- **Phân tách Slice & Cơ chế bắt lỗi:**
+  - `slice:money_movement` (ngưỡng min: 0.90, blocking): Tập trung vào các đơn hàng có phát sinh hoàn tiền thực tế (`refund_vnd > 0`). Slice này bắt trúng biến thể `slice_regression` (lỗi cộng dồn các điều khoản chỉ xảy ra ở các seed lẻ trên các claim có hoàn tiền, khiến `pass_rate` trung bình toàn bộ vẫn đạt 0.9357 nhưng slice `money_movement` tụt xuống 0.8500 < 0.90 $\rightarrow$ **BLOCK**).
+  - `slice:adversarial` (ngưỡng min: 0.85, blocking): Tập trung vào 14 case tấn công đối kháng (prompt injection, trích dẫn clause cũ, truy cập chéo tài khoản, gom đơn lậu).
+  - `pass_hat_5` (sàn min: 0.80, blocking): Đo lường xác suất cả 5/5 seed đều thành công ($pass^5$). Metric này bắt trúng biến thể chập chờn `flaky_regression` (lỗi làm tròn 1/5 seed, `pass_rate` vẫn đạt 0.9143 nhưng `pass_hat_5` rơi tự do xuống 0.5714 < 0.80 $\rightarrow$ **BLOCK**).
+- **Giới hạn cỡ mẫu (Sample Size Limitation):**
+  - Một lỗi chỉ xuất hiện ở tỷ lệ $1/3$ seeds (`rare`, xác suất fail ~33%) thì với cỡ mẫu 5 seeds, xác suất lỗi hoàn toàn không xuất hiện trong cả 5 seed là $(1 - 1/3)^5 = (2/3)^5 \approx 13.17\%$. Do đó, với 5 seeds, một bug hiếm không thể được phát hiện một cách ổn định tuyệt đối.
+  - Giải pháp đúng đắn là ghi nhận giới hạn này và tăng cỡ mẫu seed khi release major thay vì hạ thấp ngưỡng kiểm định để "cố bắt" nó.
+- **Chống gian lận Eval (Integrity Checks - M7):**
+  - Đã kích hoạt 6 tầng kiểm tra toàn vẹn dữ liệu trong `gate.py`, chặn đứng 100% các hình thức làm đẹp báo cáo: `evaluator_errors_as_nan` (NaN rơi khỏi trung bình), `dropped_failing_rows` (bỏ dòng lỗi), `cherry_picked_seeds` (tráo seed đẹp), `loosened_spec` (hạ ngưỡng/bỏ slice qua ratchet).
+  - Kết quả kiểm định mutation scorecard: **3/3 regressions bị chặn, 0 false alarms**; vượt qua 100% các public traps (`python -m lab9.traps`).
