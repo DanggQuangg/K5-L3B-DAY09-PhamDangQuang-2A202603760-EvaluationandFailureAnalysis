@@ -14,7 +14,7 @@ Lệnh in ra ba phần: các event trong trace (`reply`, `decision`, `model_over
 
 | Trường | Nội dung |
 |---|---|
-| Trial | `seeded_regression C-002@11`, run ID `E-seeded_regression-20261118-87a7` trong `reports/eval_seeded_regression.json` |
+| Trial | `seeded_regression C-002@11`, run ID `E-seeded_regression-20261119-0cb4` trong `reports/eval_seeded_regression.json` |
 | Triệu chứng | Graders fail: `RefundAmountCorrect` (ledger 20000 != label 0), `DbFactKept` (phát hiện 1 event model_override), `pass_rate` (status resolved != denied). Reply nói: *"Dạ, LogiX đã hoàn 20.000đ cho đơn O-202."* trong khi đơn O-202 chỉ trễ 2 ngày và không đủ điều kiện bồi thường (label refund_vnd = 0). |
 | Bước sai đầu tiên | Bước 3: kind `model_override`, payload `{"delay_days": 5}`. |
 | Vì sao là bước *đầu tiên* | Bước 1 (`handoff`) và Bước 2 (`investigator`) hoàn toàn đúng: investigator tra cứu DB chính xác trả về `order.delay_days = 2`. Bước 3 là thời điểm đầu tiên Agent tự ý lấy thông tin khách khai khống trong ticket ("trễ 5 ngày") để ghi đè dữ liệu DB (`model_override`). Các bước 4, 5, 6 bị sai dây chuyền trực tiếp từ quyết định sai này. |
